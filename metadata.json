@@ -1,0 +1,6 @@
+{
+  "name": "AIDN",
+  "description": "Artificial Intelligence Developer Network - From Code to Cognition. Built in Pune for developers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

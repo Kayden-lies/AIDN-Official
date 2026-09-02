@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Syne", sans-serif;
+  --font-sans: "Instrument Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+html, body {
+  background-color: #030508;
+  color: #e4e4e7;
+  font-family: var(--font-sans);
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #27272a #030508;
+}
+
+/* Hide default cursor on desktop when custom cursor is active */
+@media (pointer: fine) {
+  *, *::before, *::after {
+    cursor: none !important;
+  }
+}
+
+::selection {
+  background: rgba(56, 189, 248, 0.2);
+  color: #f0f9ff;
+}
+
+/* Custom subtle ambient glow */
+.hero-radial-bg {
+  background: radial-gradient(circle at 50% 50%, rgba(10, 25, 47, 0.45) 0%, rgba(3, 5, 8, 0.95) 70%, #020407 100%);
+}
+
