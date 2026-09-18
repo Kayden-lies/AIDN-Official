@@ -472,19 +472,19 @@ export const HeroSection: React.FC = () => {
 
       {/* 4. FINAL HERO COMPOSITION (TYPOGRAPHY HIERARCHY) */}
       {/* Centered structured layout with calibrated vertical breathing room for the 3D model and typography */}
-      <div className="relative z-20 w-full h-full flex flex-col justify-between items-center pt-10 sm:pt-12 md:pt-16 pb-10 md:pb-12 px-6 max-w-6xl mx-auto pointer-events-none">
+      <div className="relative z-20 w-full h-full flex flex-col justify-between items-center pt-10 sm:pt-12 md:pt-16 pb-10 md:pb-12 px-4 sm:px-6 max-w-[90rem] mx-auto pointer-events-none">
         {/* ABOVE THE A: "Artificial Intelligence Developer Network" with gentle downward breathing room */}
-        <div className="pt-2 sm:pt-3 text-center">
+        <div className="pt-2 sm:pt-3 text-center w-full max-w-full">
           <div
             id="hero-top-title"
-            className={`transition-all duration-1000 ease-out ${
+            className={`transition-all duration-1000 ease-out inline-block max-w-full ${
               showTopTitle
                 ? 'opacity-100 translate-y-0 filter-none'
                 : 'opacity-0 -translate-y-4 blur-sm'
             }`}
           >
             <h2
-              className="text-[1.425rem] sm:text-[1.78125rem] md:text-[2.1375rem] font-semibold tracking-[0.12em] sm:tracking-[0.18em] uppercase text-zinc-200/95 leading-tight"
+              className="text-[1.425rem] sm:text-[1.78125rem] md:text-[2.1375rem] font-semibold tracking-[0.12em] sm:tracking-[0.18em] uppercase text-zinc-200/95 leading-tight whitespace-normal min-[1200px]:whitespace-nowrap"
               style={{
                 fontFamily: 'var(--font-display)',
                 textShadow: '0 2px 25px rgba(0, 0, 0, 0.85)',
