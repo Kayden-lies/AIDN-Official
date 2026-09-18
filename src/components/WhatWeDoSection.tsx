@@ -65,9 +65,10 @@ const RESTING_CONFIGS = [
 // Tuning parameters for scroll-locking story progression
 // Calibrated so a single moderate scroll gesture advances ~1 activity transition
 const TOTAL_WHEEL_DELTA = 660; // Total scroll delta across all 3 transitions (~220px per transition)
-const COMPLETION_THRESHOLD = 100; // Brief follow-through scroll to release lock to Section 3
-const ENTRY_THRESHOLD = 100; // Brief follow-through scroll to release lock to Hero
+const COMPLETION_THRESHOLD = 150; // Deliberate breathing buffer after reaching 100% to unlock to Section 3
+const ENTRY_THRESHOLD = 150; // Deliberate breathing buffer after reaching 0% to unlock to Hero
 const TOTAL_TOUCH_DELTA = 450; // Touch drag sensitivity (~150px swipe per transition)
+const TOUCH_BUFFER_THRESHOLD = 80; // Touch buffer
 
 /**
  * Continuous mapping from normalized progress p in [0, 1]
@@ -103,9 +104,17 @@ export const WhatWeDoSection: React.FC = () => {
   const [isLocked, setIsLocked] = useState(false);
   const isLockedRef = useRef(false);
 
-  // Scroll completion accumulator to ensure state 4 is savored before unlocking
+  // Boundary buffers to ensure states 1 and 4 are deliberately experienced before releasing
   const completionHoldRef = useRef(0);
   const entryHoldRef = useRef(0);
+
+  // Prevents re-locking bounce immediately after releasing at boundaries
+  const justUnlockedRef = useRef(false);
+
+  // Smooth settle-into-frame animation controllers
+  const isSettlingRef = useRef(false);
+  const settleRafRef = useRef<number | null>(null);
+  const settleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Touch tracking
   const touchStartYRef = useRef(0);
@@ -144,11 +153,52 @@ export const WhatWeDoSection: React.FC = () => {
     return window.scrollY + rect.top;
   }, []);
 
-  // Monitor viewport position to engage or disengage scroll-lock
+  // Smooth glide function that gently aligns Section 2 with viewport without snapping
+  const settleToSectionTop = useCallback((onComplete?: () => void) => {
+    if (isSettlingRef.current) return;
+    isSettlingRef.current = true;
+
+    const targetY = getSectionTop();
+    const startY = window.scrollY;
+    const distance = targetY - startY;
+
+    if (Math.abs(distance) < 2) {
+      window.scrollTo({ top: targetY, behavior: 'instant' });
+      isSettlingRef.current = false;
+      onComplete?.();
+      return;
+    }
+
+    const duration = Math.min(420, Math.max(180, Math.abs(distance) * 0.5));
+    const startTime = performance.now();
+
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const t = Math.min(1, elapsed / duration);
+      // Silky cubic ease-out
+      const ease = 1 - Math.pow(1 - t, 3);
+      const currentY = startY + distance * ease;
+      window.scrollTo({ top: currentY, behavior: 'instant' });
+
+      if (t < 1) {
+        settleRafRef.current = requestAnimationFrame(animate);
+      } else {
+        window.scrollTo({ top: targetY, behavior: 'instant' });
+        isSettlingRef.current = false;
+        onComplete?.();
+      }
+    };
+
+    settleRafRef.current = requestAnimationFrame(animate);
+  }, [getSectionTop]);
+
+  // Monitor viewport position to engage or disengage scroll-lock smoothly
   useEffect(() => {
     let lastScrollY = window.scrollY;
 
     const handleWindowScroll = () => {
+      if (isSettlingRef.current) return;
+
       const el = sectionRef.current;
       if (!el) return;
 
@@ -159,41 +209,93 @@ export const WhatWeDoSection: React.FC = () => {
       const sectionTop = getSectionTop();
       const distance = Math.abs(currentScrollY - sectionTop);
 
-      // If already locked, keep anchored
+      // Reset justUnlocked flag once the user has scrolled comfortably past the boundary zone
+      if (justUnlockedRef.current && distance > 60) {
+        justUnlockedRef.current = false;
+      }
+
+      // If already locked, keep anchored firmly at sectionTop
       if (isLockedRef.current) {
-        if (distance > 3) {
+        if (distance > 2) {
           window.scrollTo({ top: sectionTop, behavior: 'instant' });
         }
         return;
       }
 
-      // Check if user is scrolling into Section 2
-      // Case 1: Entering from HERO (scrolling down)
-      if (scrollingDown && currentScrollY >= sectionTop - 15 && currentScrollY < sectionTop + window.innerHeight * 0.5) {
-        if (targetProgressRef.current < 0.98) {
-          setIsLocked(true);
+      // If we just unlocked at a boundary, allow natural scrolling to proceed freely
+      if (justUnlockedRef.current) return;
+
+      // Clear any pending settle timer while user is actively generating scroll events
+      if (settleTimerRef.current) {
+        clearTimeout(settleTimerRef.current);
+        settleTimerRef.current = null;
+      }
+
+      // CASE 1: Entering from HERO (scrolling down)
+      if (scrollingDown && currentScrollY > sectionTop - window.innerHeight * 0.9 && currentScrollY < sectionTop + 15) {
+        // Section naturally arrived at its full viewport position
+        if (currentScrollY >= sectionTop - 3) {
           window.scrollTo({ top: sectionTop, behavior: 'instant' });
+          setIsLocked(true);
           completionHoldRef.current = 0;
           entryHoldRef.current = 0;
+          return;
+        }
+
+        // If the user scrolls past halfway into the section entrance and pauses,
+        // smoothly settle into the full frame rather than stopping halfway
+        if (currentScrollY > sectionTop - window.innerHeight * 0.65) {
+          settleTimerRef.current = setTimeout(() => {
+            if (!isLockedRef.current && !justUnlockedRef.current) {
+              settleToSectionTop(() => {
+                setIsLocked(true);
+                completionHoldRef.current = 0;
+                entryHoldRef.current = 0;
+              });
+            }
+          }, 120);
         }
       }
-      // Case 2: Entering from SECTION 3 (scrolling up)
-      else if (!scrollingDown && currentScrollY <= sectionTop + 15 && currentScrollY > sectionTop - window.innerHeight * 0.5) {
-        if (targetProgressRef.current > 0.02) {
-          setIsLocked(true);
+      // CASE 2: Entering from SECTION 3 (scrolling up)
+      else if (!scrollingDown && currentScrollY < sectionTop + window.innerHeight * 0.9 && currentScrollY > sectionTop - 15) {
+        // Section naturally arrived at its full viewport position from below
+        if (currentScrollY <= sectionTop + 3) {
           window.scrollTo({ top: sectionTop, behavior: 'instant' });
           targetProgressRef.current = 1.0;
           currentProgressRef.current = 1.0;
           setProgress(1.0);
+          setIsLocked(true);
           completionHoldRef.current = 0;
           entryHoldRef.current = 0;
+          return;
+        }
+
+        // If the user scrolls past halfway into the section entrance from below and pauses,
+        // smoothly settle into the full frame
+        if (currentScrollY < sectionTop + window.innerHeight * 0.65) {
+          settleTimerRef.current = setTimeout(() => {
+            if (!isLockedRef.current && !justUnlockedRef.current) {
+              settleToSectionTop(() => {
+                targetProgressRef.current = 1.0;
+                currentProgressRef.current = 1.0;
+                setProgress(1.0);
+                setIsLocked(true);
+                completionHoldRef.current = 0;
+                entryHoldRef.current = 0;
+              });
+            }
+          }, 120);
         }
       }
     };
 
     window.addEventListener('scroll', handleWindowScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleWindowScroll);
-  }, [getSectionTop]);
+    return () => {
+      window.removeEventListener('scroll', handleWindowScroll);
+      if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+      if (settleRafRef.current) cancelAnimationFrame(settleRafRef.current);
+    };
+  }, [getSectionTop, settleToSectionTop]);
 
   // WHEEL & TRACKPAD INTERCEPTION
   useEffect(() => {
@@ -212,19 +314,15 @@ export const WhatWeDoSection: React.FC = () => {
           completionHoldRef.current = 0;
         } else {
           // Reached 100% (State 4 KNOWLEDGE SHARING)
-          // Require extra intentional scrolling to confirm chapter exit
+          // 1. Hold and let the final state be clearly observed
+          // 2. Only unlock after deliberate continued downward scrolling exceeds the completion buffer
           completionHoldRef.current += deltaY;
           if (completionHoldRef.current < COMPLETION_THRESHOLD) {
             e.preventDefault();
           } else {
-            // UNLOCK to Section 3!
+            // UNLOCK to normal page scrolling — NO programmatic jump or snap!
             setIsLocked(false);
-            const nextSection = document.getElementById('about-section');
-            if (nextSection) {
-              nextSection.scrollIntoView({ behavior: 'smooth' });
-            } else {
-              window.scrollBy({ top: 80, behavior: 'smooth' });
-            }
+            justUnlockedRef.current = true;
           }
         }
       } else if (deltaY < 0) {
@@ -236,19 +334,15 @@ export const WhatWeDoSection: React.FC = () => {
           entryHoldRef.current = 0;
         } else {
           // Reached 0% (State 1 DEV DAYS)
-          // Require extra intentional upward scrolling to confirm return to Hero
+          // 1. Hold and let the initial state be clearly observed
+          // 2. Only unlock after deliberate continued upward scrolling exceeds the boundary buffer
           entryHoldRef.current += Math.abs(deltaY);
           if (entryHoldRef.current < ENTRY_THRESHOLD) {
             e.preventDefault();
           } else {
-            // UNLOCK to Hero!
+            // UNLOCK to normal page scrolling back toward Hero — NO programmatic jump!
             setIsLocked(false);
-            const heroSection = document.getElementById('hero-section');
-            if (heroSection) {
-              heroSection.scrollIntoView({ behavior: 'smooth' });
-            } else {
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }
+            justUnlockedRef.current = true;
           }
         }
       }
@@ -282,12 +376,11 @@ export const WhatWeDoSection: React.FC = () => {
           completionHoldRef.current = 0;
         } else {
           completionHoldRef.current += deltaY;
-          if (completionHoldRef.current < COMPLETION_THRESHOLD) {
+          if (completionHoldRef.current < TOUCH_BUFFER_THRESHOLD) {
             if (e.cancelable) e.preventDefault();
           } else {
             setIsLocked(false);
-            const nextSection = document.getElementById('about-section');
-            if (nextSection) nextSection.scrollIntoView({ behavior: 'smooth' });
+            justUnlockedRef.current = true;
           }
         }
       } else if (deltaY < 0) {
@@ -300,12 +393,11 @@ export const WhatWeDoSection: React.FC = () => {
           entryHoldRef.current = 0;
         } else {
           entryHoldRef.current += Math.abs(deltaY);
-          if (entryHoldRef.current < ENTRY_THRESHOLD) {
+          if (entryHoldRef.current < TOUCH_BUFFER_THRESHOLD) {
             if (e.cancelable) e.preventDefault();
           } else {
             setIsLocked(false);
-            const heroSection = document.getElementById('hero-section');
-            if (heroSection) heroSection.scrollIntoView({ behavior: 'smooth' });
+            justUnlockedRef.current = true;
           }
         }
       }
@@ -330,9 +422,10 @@ export const WhatWeDoSection: React.FC = () => {
           e.preventDefault();
           targetProgressRef.current = Math.min(1.0, targetProgressRef.current + 1 / 3);
         } else {
-          completionHoldRef.current += 50;
+          completionHoldRef.current += 70;
           if (completionHoldRef.current >= COMPLETION_THRESHOLD) {
             setIsLocked(false);
+            justUnlockedRef.current = true;
           }
         }
       } else if (['ArrowUp', 'PageUp'].includes(e.code)) {
@@ -340,9 +433,10 @@ export const WhatWeDoSection: React.FC = () => {
           e.preventDefault();
           targetProgressRef.current = Math.max(0.0, targetProgressRef.current - 1 / 3);
         } else {
-          entryHoldRef.current += 50;
+          entryHoldRef.current += 70;
           if (entryHoldRef.current >= ENTRY_THRESHOLD) {
             setIsLocked(false);
+            justUnlockedRef.current = true;
           }
         }
       }
@@ -382,7 +476,7 @@ export const WhatWeDoSection: React.FC = () => {
       className="relative w-full h-screen bg-[#020408] text-white overflow-hidden select-none"
     >
       {/* FULL-VIEWPORT STAGE */}
-      <div className="h-full w-full flex flex-col justify-between py-6 sm:py-10 px-6 sm:px-10 lg:px-16 max-w-7xl mx-auto">
+      <div className="h-full w-full flex flex-col justify-between pt-24 sm:pt-28 pb-6 sm:pb-8 px-6 sm:px-10 lg:px-16 max-w-7xl mx-auto">
         
         {/* TOP BAR: SECTION TITLE & CONTINUOUS PROGRESS INDICATOR */}
         <div className="w-full flex items-center justify-between pt-2 z-30">
@@ -426,7 +520,7 @@ export const WhatWeDoSection: React.FC = () => {
             LEFT: Physical Stack of AIDN Event Photographs
             RIGHT: Typography & Information (NO CARDS / NO BOXED UI)
         */}
-        <div className="flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center my-auto py-2">
+        <div className="flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center pt-7 sm:pt-9 lg:pt-10 pb-3">
           
           {/* ========================================================================= */}
           {/* LEFT HALF: PHYSICAL PHOTO STACK (7 columns on desktop)                     */}

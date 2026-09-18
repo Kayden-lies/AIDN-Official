@@ -9,6 +9,14 @@ const INTRO_LINES = [
   'Enter the network. Build what\'s next.',
 ];
 
+export type LoadingPhase =
+  | 'loading'     // 0% -> 100% real GLB download and scene parsing
+  | 'hold100'     // Model loaded, brief hold of 100% state (~350ms)
+  | 'fade_ui'     // Loading composition fades out simultaneously (~400ms)
+  | 'dark_pause'  // Brief cinematic darkness (~250ms)
+  | 'revealing'   // 16s four-light reveal sequence (revealProgress 0 -> 1)
+  | 'complete';   // Reveal done, typography settled, scroll lock removed
+
 export const HeroSection: React.FC = () => {
   // Select exactly ONE random intro line on mount
   const [introLine] = useState(() => {
@@ -16,9 +24,18 @@ export const HeroSection: React.FC = () => {
     return INTRO_LINES[idx];
   });
 
+  // Cinematic Loading & Reveal State
+  const [phase, setPhase] = useState<LoadingPhase>('loading');
+  const [displayProgress, setDisplayProgress] = useState<number>(0);
+  const displayProgressRef = useRef<number>(0);
+  const rawProgressRef = useRef<number>(0);
+  const isModelReadyRef = useRef<boolean>(false);
+  const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
+  const progressRafRef = useRef<number | null>(null);
+  const revealRafRef = useRef<number | null>(null);
+
   // Animation timeline state
   const [revealProgress, setRevealProgress] = useState(0); // 0 to 1
-  const [introOpacity, setIntroOpacity] = useState(0);
   const [showTopTitle, setShowTopTitle] = useState(false);
   const [showSubtext, setShowSubtext] = useState(false);
   const [isRevealComplete, setIsRevealComplete] = useState(false);
@@ -33,7 +50,6 @@ export const HeroSection: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const startTimeRef = useRef<number | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
 
   // Load any previously saved custom model from IndexedDB on mount
   useEffect(() => {
@@ -140,78 +156,113 @@ export const HeroSection: React.FC = () => {
     setTimeout(() => setUploadToast(null), 3000);
   };
 
-  // Choreographed timeline controller
-  const runTimeline = () => {
-    // Reset states
-    startTimeRef.current = performance.now();
+  const handleLoadProgress = (percent: number) => {
+    rawProgressRef.current = Math.max(rawProgressRef.current, percent);
+  };
+
+  const handleModelReady = () => {
+    isModelReadyRef.current = true;
+    rawProgressRef.current = 100;
+  };
+
+  // Four-light cinematic reveal timeline
+  const startReveal = () => {
+    setPhase('revealing');
     setRevealProgress(0);
-    setIntroOpacity(0);
-    setShowTopTitle(false);
-    setShowSubtext(false);
-    setIsRevealComplete(false);
+    startTimeRef.current = performance.now();
+
+    const lightDuration = 16.0; // 16.0s four-light cinematic choreography
 
     const tick = (now: number) => {
       if (!startTimeRef.current) startTimeRef.current = now;
-      const elapsed = (now - startTimeRef.current) / 1000; // seconds
+      const elapsed = (now - startTimeRef.current) / 1000;
 
-      // 1. Philosophical Intro Text: Crisp entrance, clear reading window, fades out smoothly by 2.0s
-      if (elapsed < 0.2) {
-        setIntroOpacity(0);
-      } else if (elapsed >= 0.2 && elapsed < 0.75) {
-        const inProgress = (elapsed - 0.2) / 0.55;
-        setIntroOpacity(Math.min(1, inProgress));
-      } else if (elapsed >= 0.75 && elapsed < 1.55) {
-        setIntroOpacity(1);
-      } else if (elapsed >= 1.55 && elapsed < 2.0) {
-        const outProgress = 1 - (elapsed - 1.55) / 0.45;
-        setIntroOpacity(Math.max(0, outProgress));
-      } else {
-        setIntroOpacity(0);
-      }
+      const p = Math.min(1, elapsed / lightDuration);
+      setRevealProgress(p);
 
-      // 2. 3D Light Journey: Begins immediately as the intro line fades out (at 2.0s) without any delay
-      // Duration reduced by 5 seconds (from 21.0s to 16.0s)
-      const lightStart = 2.0;
-      const lightDuration = 16.0;
-      const lightEnd = lightStart + lightDuration; // 18.0s
-
-      if (elapsed < lightStart) {
-        setRevealProgress(0);
-      } else if (elapsed >= lightStart && elapsed < lightEnd) {
-        const p = (elapsed - lightStart) / lightDuration;
-        setRevealProgress(Math.min(1, p));
-      } else {
-        setRevealProgress(1);
-      }
-
-      // 3. Typographic Reveal Sequence (Unfolds smoothly as lights converge at 18.0s)
-      // "Artificial Intelligence Developer Network" appears as lights settle
-      if (elapsed >= lightEnd) {
+      // Typographic Reveal Sequence
+      // "Artificial Intelligence Developer Network" appears as lights converge
+      if (elapsed >= lightDuration - 0.4) {
         setShowTopTitle(true);
       }
-      // "Built in Pune for developers." appears with ample breathing room
-      if (elapsed >= lightEnd + 0.4) {
+      // "From Code to Cognition" and "Built in Pune for developers." appear below
+      if (elapsed >= lightDuration) {
         setShowSubtext(true);
       }
 
       // Completion
-      if (elapsed >= lightEnd + 1.2) {
+      if (elapsed >= lightDuration + 1.0) {
         setIsRevealComplete(true);
-        return; // End animation loop
+        setPhase('complete');
+        return;
       }
 
-      animationFrameRef.current = requestAnimationFrame(tick);
+      revealRafRef.current = requestAnimationFrame(tick);
     };
 
-    animationFrameRef.current = requestAnimationFrame(tick);
+    revealRafRef.current = requestAnimationFrame(tick);
   };
 
+  // Real GLB Loading & Smooth Progress Loop
   useEffect(() => {
-    runTimeline();
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
+    let active = true;
+
+    const animateProgress = () => {
+      if (!active) return;
+      const current = displayProgressRef.current;
+      const target = rawProgressRef.current;
+
+      let next = current;
+      if (target > current) {
+        const diff = target - current;
+        // Natural ease: rapid on large jumps, buttery smooth into steps
+        const step = Math.max(diff * 0.16, 0.45);
+        next = Math.min(target, current + step);
       }
+
+      displayProgressRef.current = next;
+      setDisplayProgress(next);
+
+      // Transition once the real GLB model is loaded, parsed, and ready
+      if (isModelReadyRef.current && next >= 99.8) {
+        displayProgressRef.current = 100;
+        setDisplayProgress(100);
+        setPhase('hold100');
+
+        // 1. Brief 100% hold (~350ms) with quote visible
+        const t1 = setTimeout(() => {
+          if (!active) return;
+          setPhase('fade_ui');
+
+          // 2. Smooth simultaneous fade out of quote, bar, and percentage (~400ms)
+          const t2 = setTimeout(() => {
+            if (!active) return;
+            setPhase('dark_pause');
+
+            // 3. Brief moment of near-total darkness (~250ms) before the lights ignite
+            const t3 = setTimeout(() => {
+              if (!active) return;
+              startReveal();
+            }, 250);
+            timeoutRefs.current.push(t3);
+          }, 400);
+          timeoutRefs.current.push(t2);
+        }, 350);
+        timeoutRefs.current.push(t1);
+
+        return; // End progress interpolation loop
+      }
+
+      progressRafRef.current = requestAnimationFrame(animateProgress);
+    };
+
+    progressRafRef.current = requestAnimationFrame(animateProgress);
+
+    return () => {
+      active = false;
+      if (progressRafRef.current) cancelAnimationFrame(progressRafRef.current);
+      if (revealRafRef.current) cancelAnimationFrame(revealRafRef.current);
+      timeoutRefs.current.forEach(clearTimeout);
     };
   }, []);
 
@@ -297,19 +348,36 @@ export const HeroSection: React.FC = () => {
 
   // Quick skip for review
   const handleSkipReveal = () => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-    setIntroOpacity(0);
+    timeoutRefs.current.forEach(clearTimeout);
+    timeoutRefs.current = [];
+    if (progressRafRef.current) cancelAnimationFrame(progressRafRef.current);
+    if (revealRafRef.current) cancelAnimationFrame(revealRafRef.current);
+
+    displayProgressRef.current = 100;
+    setDisplayProgress(100);
     setRevealProgress(1);
     setShowTopTitle(true);
     setShowSubtext(true);
     setIsRevealComplete(true);
+    setPhase('complete');
   };
 
   // Replay reveal
   const handleReplay = () => {
-    runTimeline();
+    timeoutRefs.current.forEach(clearTimeout);
+    timeoutRefs.current = [];
+    if (revealRafRef.current) cancelAnimationFrame(revealRafRef.current);
+
+    setShowTopTitle(false);
+    setShowSubtext(false);
+    setIsRevealComplete(false);
+    setRevealProgress(0);
+    setPhase('dark_pause');
+
+    const t = setTimeout(() => {
+      startReveal();
+    }, 250);
+    timeoutRefs.current.push(t);
   };
 
   return (
@@ -333,6 +401,8 @@ export const HeroSection: React.FC = () => {
         revealProgress={revealProgress}
         isRevealComplete={isRevealComplete}
         customModelBuffer={customModelBuffer}
+        onLoadProgress={handleLoadProgress}
+        onModelReady={handleModelReady}
         onModelLoaded={(name, stats) => {
           if (stats) setModelStats(stats);
         }}
@@ -341,29 +411,46 @@ export const HeroSection: React.FC = () => {
       {/* Subtle edge vignette - extremely restrained to keep the physical 3D floor and moving shadow pure */}
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_75%,#020408_100%)] opacity-25" />
 
-      {/* 1. INTRO LINE (SUBTLE, CINEMATIC, ONLY ONE, APPEARS FIRST) */}
-      <div
-        id="intro-line-container"
-        className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 transition-all duration-700 ease-out"
-        style={{
-          opacity: introOpacity,
-          transform: `translateY(${(1 - introOpacity) * 8}px)`,
-          filter: introOpacity < 0.8 ? 'blur(1px)' : 'none',
-        }}
-      >
-        <div className="px-6 text-center max-w-xl">
-          <p
-            id="intro-line-text"
-            className="text-base sm:text-lg md:text-xl font-normal text-zinc-300 tracking-[0.14em] uppercase"
-            style={{
-              fontFamily: 'var(--font-sans)',
-              textShadow: '0 2px 20px rgba(0,0,0,0.8)',
-            }}
-          >
-            {introLine}
-          </p>
+      {/* 1. CENTERED CINEMATIC LOADING COMPOSITION */}
+      {phase !== 'revealing' && phase !== 'complete' && (
+        <div
+          id="hero-loading-composition"
+          className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none transition-opacity duration-400 ease-out"
+          style={{
+            opacity: phase === 'fade_ui' || phase === 'dark_pause' ? 0 : 1,
+          }}
+        >
+          <div className="w-full max-w-md px-6 flex flex-col items-center text-center">
+            {/* Centered Intro Quote */}
+            <p
+              id="hero-intro-quote"
+              className="text-sm sm:text-base md:text-lg font-normal text-zinc-300 tracking-[0.14em] uppercase leading-relaxed max-w-lg"
+              style={{
+                fontFamily: 'var(--font-sans)',
+                textShadow: '0 2px 20px rgba(0,0,0,0.85)',
+              }}
+            >
+              {introLine}
+            </p>
+
+            {/* Understated Progress Bar + Percentage */}
+            <div className="w-full max-w-[260px] sm:max-w-[280px] mt-8 sm:mt-10 flex items-center gap-3">
+              {/* Track & Filled portion */}
+              <div className="flex-1 h-[1.5px] bg-zinc-800/80 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-sky-400 transition-all duration-75 ease-out"
+                  style={{ width: `${displayProgress}%` }}
+                />
+              </div>
+
+              {/* Percentage text */}
+              <span className="text-[11px] sm:text-xs font-mono tabular-nums text-zinc-400 min-w-[2.5rem] text-right">
+                {Math.round(displayProgress)}%
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 4. FINAL HERO COMPOSITION (TYPOGRAPHY HIERARCHY) */}
       {/* Centered structured layout leaving negative space for the 3D 'A' */}
@@ -394,11 +481,11 @@ export const HeroSection: React.FC = () => {
         {/* MIDDLE SPACER: Negative space dedicated to the 3D A */}
         <div className="flex-1 w-full max-w-lg flex items-center justify-center" />
 
-        {/* BELOW THE A: "Built in Pune for developers." with spacious breathing room */}
-        <div className="pb-8 md:pb-12 text-center flex flex-col items-center">
-          {/* Supporting Text: "Built in Pune for developers." */}
+        {/* BELOW THE AIDN MODEL */}
+        <div className="pb-8 md:pb-12 text-center flex flex-col items-center gap-1.5 sm:gap-2">
+          {/* Tagline: "From Code to Cognition" */}
           <div
-            id="hero-supporting-text"
+            id="hero-tagline"
             className={`transition-all duration-1000 ease-out ${
               showSubtext
                 ? 'opacity-100 translate-y-0 filter-none'
@@ -406,10 +493,30 @@ export const HeroSection: React.FC = () => {
             }`}
           >
             <p
-              className="text-base sm:text-lg md:text-xl font-medium text-zinc-300 tracking-[0.06em] uppercase"
+              className="text-base sm:text-lg md:text-xl font-medium text-zinc-200 tracking-[0.12em] uppercase"
               style={{
                 fontFamily: 'var(--font-sans)',
-                textShadow: '0 2px 20px rgba(0, 0, 0, 0.8)',
+                textShadow: '0 2px 20px rgba(0, 0, 0, 0.85)',
+              }}
+            >
+              From Code to Cognition
+            </p>
+          </div>
+
+          {/* Location / Mission: "Built in Pune for developers." */}
+          <div
+            id="hero-supporting-text"
+            className={`transition-all duration-1000 delay-150 ease-out ${
+              showSubtext
+                ? 'opacity-100 translate-y-0 filter-none'
+                : 'opacity-0 translate-y-2 blur-sm'
+            }`}
+          >
+            <p
+              className="text-xs sm:text-sm md:text-base font-normal text-zinc-400 tracking-[0.08em] uppercase"
+              style={{
+                fontFamily: 'var(--font-sans)',
+                textShadow: '0 2px 15px rgba(0, 0, 0, 0.8)',
               }}
             >
               Built in Pune for developers.

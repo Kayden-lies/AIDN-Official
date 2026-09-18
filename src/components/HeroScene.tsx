@@ -7,6 +7,8 @@ interface HeroSceneProps {
   revealProgress: number; // 0 to 1
   isRevealComplete: boolean;
   onModelLoaded?: (name: string, stats?: { vertices: number; meshes: number }) => void;
+  onLoadProgress?: (percent: number) => void;
+  onModelReady?: () => void;
   customModelBuffer?: ArrayBuffer | null;
   modelUrl?: string;
 }
@@ -15,6 +17,8 @@ export const HeroScene: React.FC<HeroSceneProps> = ({
   revealProgress,
   isRevealComplete,
   onModelLoaded,
+  onLoadProgress,
+  onModelReady,
   customModelBuffer,
   modelUrl,
 }) => {
@@ -332,6 +336,7 @@ export const HeroScene: React.FC<HeroSceneProps> = ({
 
       // Model interaction when reveal complete
       if (modelGroupRef.current) {
+        modelGroupRef.current.visible = isLoadedRef.current && revealProgressRef.current > 0.0001;
         if (isLoadedRef.current) {
           // Micro breathing idle motion
           const idleTiltY = Math.sin(time * 0.7) * 0.015;
@@ -514,9 +519,9 @@ export const HeroScene: React.FC<HeroSceneProps> = ({
       );
 
       // Environmental Ambient Illumination (deep quiet darkness -> subtle architectural air)
-      let ambIntensity = 0.005;
-      if (p > 0.12 && p <= 0.40) {
-        ambIntensity = 0.005 + smooth((p - 0.12) / 0.28) * 0.010;
+      let ambIntensity = 0.001;
+      if (p > 0.001 && p <= 0.40) {
+        ambIntensity = 0.002 + smooth((p - 0.001) / 0.40) * 0.013;
       } else if (p > 0.40 && p <= 0.65) {
         ambIntensity = 0.015 + smooth((p - 0.40) / 0.25) * 0.010;
       } else if (p > 0.65 && p <= 0.85) {
@@ -537,8 +542,9 @@ export const HeroScene: React.FC<HeroSceneProps> = ({
       // Smooth cursor blend as convergence completes (zero discontinuity at p = 1.0)
       const cursorBlend = smootherstep(0.85, 1.00, p);
 
-      // Lights start clearly visible at the four corners at 40% brightness by default, scaling smoothly and continuously to 100% as convergence settles
-      const intensityScale = THREE.MathUtils.lerp(0.40, 1.00, smootherstep(0.00, 0.95, p));
+      // Spotlights remain completely off (0 intensity) during loading and dark pause (p <= 0.0001)
+      // Once reveal begins, intensity smoothly ramps up from 0 to 100% as convergence settles
+      const intensityScale = p <= 0.0001 ? 0 : smootherstep(0.00, 0.95, p);
 
       // 1. LIGHT 1: Top-Left Corner -> Acrobatics -> Apex & Upper Left Sector
       // Targets the pinnacle apex and upper-left diagonal arm so upper monument is visibly bright
@@ -861,11 +867,14 @@ export const HeroScene: React.FC<HeroSceneProps> = ({
 
     if (customModelBuffer) {
       try {
+        onLoadProgress?.(30);
         loader.parse(
           customModelBuffer,
           '',
           (gltf) => {
             applyModel(gltf, true);
+            onLoadProgress?.(100);
+            onModelReady?.();
           },
           (err) => {
             console.error('Failed to parse custom GLB buffer', err);
@@ -877,24 +886,80 @@ export const HeroScene: React.FC<HeroSceneProps> = ({
       }
     } else {
       const primaryUrl = modelUrl || aidnModelUrl || '/a.glb';
-      loader.load(
-        primaryUrl,
-        (gltf) => {
-          applyModel(gltf, true);
-        },
-        undefined,
-        (err) => {
-          console.warn(`Loading ${primaryUrl} failed, trying /a.glb fallback:`, err);
+
+      // Load model with real streaming progress tracking
+      (async () => {
+        try {
+          onLoadProgress?.(0);
+          const res = await fetch(primaryUrl);
+          if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+
+          const contentLengthHeader = res.headers.get('content-length');
+          const totalBytes = contentLengthHeader ? parseInt(contentLengthHeader, 10) : 7230000;
+          const reader = res.body?.getReader();
+
+          let buffer: ArrayBuffer;
+          if (reader) {
+            let receivedBytes = 0;
+            const chunks: Uint8Array[] = [];
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              chunks.push(value);
+              receivedBytes += value.length;
+              const percent = Math.min(95, (receivedBytes / totalBytes) * 100);
+              onLoadProgress?.(percent);
+            }
+
+            const combined = new Uint8Array(receivedBytes);
+            let offset = 0;
+            for (const chunk of chunks) {
+              combined.set(chunk, offset);
+              offset += chunk.length;
+            }
+            buffer = combined.buffer;
+          } else {
+            buffer = await res.arrayBuffer();
+            onLoadProgress?.(95);
+          }
+
+          onLoadProgress?.(98);
+          loader.parse(
+            buffer,
+            '',
+            (gltf) => {
+              applyModel(gltf, false);
+              onLoadProgress?.(100);
+              onModelReady?.();
+            },
+            (parseErr) => {
+              console.error('Failed to parse GLB:', parseErr);
+              setLoadError('Failed to parse 3D model.');
+            }
+          );
+        } catch (fetchErr) {
+          console.warn('Streaming fetch failed, falling back to loader.load:', fetchErr);
           loader.load(
-            '/a.glb',
-            (fallbackGltf) => applyModel(fallbackGltf, true),
-            undefined,
-            () => {
-              loader.load('/aidn.glb', (aidnGltf) => applyModel(aidnGltf, true));
+            primaryUrl,
+            (gltf) => {
+              applyModel(gltf, false);
+              onLoadProgress?.(100);
+              onModelReady?.();
+            },
+            (xhr) => {
+              if (xhr.lengthComputable && xhr.total > 0) {
+                const percent = Math.min(96, (xhr.loaded / xhr.total) * 100);
+                onLoadProgress?.(percent);
+              }
+            },
+            (err) => {
+              console.error('Model load failed:', err);
+              setLoadError('Failed to load 3D model.');
             }
           );
         }
-      );
+      })();
     }
   }, [customModelBuffer, modelUrl]);
 
