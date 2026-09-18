@@ -61,9 +61,9 @@ export const Navigation: React.FC = () => {
       }`}
     >
       <div className="max-w-7xl mx-auto px-6 py-4">
-        <div className="flex items-center justify-between px-6 py-3 rounded-full bg-zinc-950/80 backdrop-blur-md border border-zinc-800/80 shadow-2xl">
-          {/* Brand mark with reference typography */}
-          <div className="flex items-center space-x-3.5">
+        <div className="relative flex items-center justify-between px-6 py-3 rounded-full bg-zinc-950/80 backdrop-blur-md border border-zinc-800/80 shadow-2xl">
+          {/* Brand mark on left with reference typography */}
+          <div className="flex items-center space-x-3.5 z-10">
             <span
               className="text-sm font-bold tracking-[0.25em] uppercase text-zinc-100"
               style={{ fontFamily: 'var(--font-display)' }}
@@ -71,15 +71,15 @@ export const Navigation: React.FC = () => {
               AIDN
             </span>
             <span className="h-4 w-[1px] bg-zinc-800" />
-            <div className="hidden sm:flex flex-col text-[8.5px] font-sans tracking-[0.16em] uppercase text-zinc-400 leading-tight">
-              <span>Artificial Intelligence</span>
-              <span>Developer Network</span>
-              <span className="text-zinc-500">Pune</span>
+            <div className="hidden sm:flex flex-col text-[8px] font-sans tracking-[0.18em] uppercase text-zinc-400 leading-tight">
+              <span>ARTIFICIAL INTELLIGENCE</span>
+              <span>DEVELOPER NETWORK</span>
+              <span className="text-zinc-500">PUNE</span>
             </div>
           </div>
 
-          {/* Nav Links */}
-          <nav className="hidden md:flex items-center space-x-8 text-xs tracking-wider uppercase font-medium">
+          {/* Centered Navigation Links */}
+          <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center space-x-8 text-xs tracking-wider uppercase font-medium">
             {navItems.map((item) => {
               const isActive = activeSection === item.key;
               return (
@@ -103,8 +103,8 @@ export const Navigation: React.FC = () => {
             })}
           </nav>
 
-          {/* Join Us action button matching visual reference */}
-          <div className="flex items-center space-x-3">
+          {/* JOIN US button on right */}
+          <div className="flex items-center space-x-3 z-10">
             <a
               href="#join-us"
               onClick={(e) => {
@@ -114,7 +114,7 @@ export const Navigation: React.FC = () => {
               }}
               className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full text-xs font-medium tracking-wider uppercase bg-transparent text-zinc-200 border border-zinc-700/80 hover:border-zinc-500 hover:text-white transition-all duration-300 cursor-pointer"
             >
-              <span>Join Us</span>
+              <span>JOIN US</span>
               <span className="text-zinc-400 group-hover:text-white text-xs">→</span>
             </a>
           </div>

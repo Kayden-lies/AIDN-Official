@@ -41,16 +41,6 @@ export const TheIdeaSection: React.FC = () => {
       className="relative w-full min-h-screen flex flex-col justify-between items-center py-20 md:py-28 px-6 sm:px-10 lg:px-16 bg-[#020408] text-zinc-100 overflow-hidden select-text"
       aria-label="The Idea Behind AIDN"
     >
-      {/* Subtle atmospheric ambient presence in far corners - felt more than seen */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-32 -left-32 w-96 h-96 rounded-full bg-sky-500/[0.04] blur-[130px]"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -bottom-32 -right-32 w-96 h-96 rounded-full bg-sky-500/[0.035] blur-[130px]"
-      />
-
       {/* Main container with side editorial markers and central narrative */}
       <div className="relative z-10 w-full max-w-7xl mx-auto flex-1 flex flex-col justify-center items-center">
         {/* SUBTLE SIDE ELEMENT: Left side marker (01 + BUILD LEARN CONNECT GROW) */}
