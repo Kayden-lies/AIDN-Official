@@ -171,27 +171,45 @@ export const HeroSection: React.FC = () => {
     setRevealProgress(0);
     startTimeRef.current = performance.now();
 
-    const lightDuration = 16.0; // 16.0s four-light cinematic choreography
+    const originalLightDuration = 16.0; // Conceptual 16.0s four-light choreography baseline
+
+    // Compress ONLY the initial 0.0s -> 3.0s independent spotlight phase into ~0.8s.
+    // After ~0.8s, return to the exact existing 1.0x animation timing/speed.
+    // Cubic time curve ensures C^1 continuity: value and velocity match smoothly at t = 0.8s (T = 3.0, T' = 1.0).
+    const getVirtualElapsed = (elapsed: number): number => {
+      const tSplit = 0.8;
+      const targetOrig = 3.0;
+      if (elapsed <= 0) return 0;
+      if (elapsed >= tSplit) {
+        return targetOrig + (elapsed - tSplit);
+      }
+      return (
+        -7.03125 * elapsed * elapsed * elapsed +
+        7.8125 * elapsed * elapsed +
+        2.0 * elapsed
+      );
+    };
 
     const tick = (now: number) => {
       if (!startTimeRef.current) startTimeRef.current = now;
       const elapsed = (now - startTimeRef.current) / 1000;
 
-      const p = Math.min(1, elapsed / lightDuration);
+      const virtualElapsed = getVirtualElapsed(elapsed);
+      const p = Math.min(1, virtualElapsed / originalLightDuration);
       setRevealProgress(p);
 
       // Typographic Reveal Sequence
       // "Artificial Intelligence Developer Network" appears as lights converge
-      if (elapsed >= lightDuration - 0.4) {
+      if (virtualElapsed >= originalLightDuration - 0.4) {
         setShowTopTitle(true);
       }
       // "From Code to Cognition" and "Built in Pune for developers." appear below
-      if (elapsed >= lightDuration) {
+      if (virtualElapsed >= originalLightDuration) {
         setShowSubtext(true);
       }
 
       // Completion
-      if (elapsed >= lightDuration + 1.0) {
+      if (virtualElapsed >= originalLightDuration + 1.0) {
         setIsRevealComplete(true);
         setPhase('complete');
         return;
