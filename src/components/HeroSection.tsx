@@ -215,6 +215,86 @@ export const HeroSection: React.FC = () => {
     };
   }, []);
 
+  // Disable scrolling until and unless the animation completes
+  useEffect(() => {
+    if (!isRevealComplete) {
+      // Ensure initial scroll position is locked to top
+      if (window.scrollY !== 0 || window.scrollX !== 0) {
+        window.scrollTo(0, 0);
+      }
+
+      // Prevent automatic scroll restoration while animation runs
+      if ('scrollRestoration' in window.history) {
+        window.history.scrollRestoration = 'manual';
+      }
+
+      const originalHtmlOverflow = document.documentElement.style.overflow;
+      const originalBodyOverflow = document.body.style.overflow;
+      const originalOverscroll = document.body.style.overscrollBehavior;
+
+      // Lock document root & body
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      document.body.style.overscrollBehavior = 'none';
+
+      // Intercept wheel, touch gestures, and keyboard navigation keys
+      const preventDefault = (e: Event) => {
+        e.preventDefault();
+      };
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        const scrollKeys = [
+          'ArrowDown',
+          'ArrowUp',
+          'PageDown',
+          'PageUp',
+          'Space',
+          ' ',
+          'Home',
+          'End',
+        ];
+        if (scrollKeys.includes(e.key)) {
+          const target = e.target as HTMLElement | null;
+          if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+            return;
+          }
+          e.preventDefault();
+        }
+      };
+
+      const handleScroll = () => {
+        if (window.scrollY !== 0 || window.scrollX !== 0) {
+          window.scrollTo(0, 0);
+        }
+      };
+
+      window.addEventListener('wheel', preventDefault, { passive: false });
+      window.addEventListener('touchmove', preventDefault, { passive: false });
+      window.addEventListener('keydown', handleKeyDown, { passive: false });
+      window.addEventListener('scroll', handleScroll, { passive: true });
+
+      return () => {
+        document.documentElement.style.overflow = originalHtmlOverflow;
+        document.body.style.overflow = originalBodyOverflow;
+        document.body.style.overscrollBehavior = originalOverscroll;
+
+        window.removeEventListener('wheel', preventDefault);
+        window.removeEventListener('touchmove', preventDefault);
+        window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('scroll', handleScroll);
+      };
+    } else {
+      // Animation complete: restore normal scrolling
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      document.body.style.overscrollBehavior = '';
+
+      if ('scrollRestoration' in window.history) {
+        window.history.scrollRestoration = 'auto';
+      }
+    }
+  }, [isRevealComplete]);
+
   // Quick skip for review
   const handleSkipReveal = () => {
     if (animationFrameRef.current) {
@@ -338,14 +418,34 @@ export const HeroSection: React.FC = () => {
         </div>
       </div>
 
+      {/* SKIP ANIMATION BUTTON: Allows completing the animation immediately and unlocking scrolling */}
+      {!isRevealComplete && (
+        <button
+          id="skip-animation-btn"
+          onClick={handleSkipReveal}
+          className="absolute top-6 right-6 z-40 px-3 py-1.5 rounded-full bg-zinc-950/60 hover:bg-zinc-900/90 border border-zinc-800/80 hover:border-zinc-600 text-[11px] font-medium tracking-[0.16em] uppercase text-zinc-400 hover:text-zinc-200 transition-all duration-300 backdrop-blur-md cursor-pointer flex items-center space-x-1.5 group shadow-lg"
+          title="Skip intro animation"
+        >
+          <span>Skip</span>
+          <svg className="w-3 h-3 text-zinc-400 group-hover:text-zinc-200 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+          </svg>
+        </button>
+      )}
+
       {/* RIGHT BOTTOM SCROLL INDICATOR: Mouse icon centered on top of "Explore Network" */}
       <div
         id="scroll-indicator"
         onClick={() => {
-          window.scrollTo({
-            top: window.innerHeight,
-            behavior: 'smooth',
-          });
+          const target = document.getElementById('what-we-do');
+          if (target) {
+            target.scrollIntoView({ behavior: 'smooth' });
+          } else {
+            window.scrollTo({
+              top: window.innerHeight,
+              behavior: 'smooth',
+            });
+          }
         }}
         className={`absolute bottom-6 right-6 md:bottom-8 md:right-10 z-30 pointer-events-auto flex flex-col items-center gap-2 cursor-pointer group transition-all duration-1000 ${
           isRevealComplete ? 'opacity-80 hover:opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'

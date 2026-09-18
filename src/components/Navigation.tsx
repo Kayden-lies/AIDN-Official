@@ -48,11 +48,11 @@ export const Navigation: React.FC = () => {
             <a href="#hero-section" className="hover:text-zinc-100 transition-colors">
               Hero
             </a>
-            <a href="#about-section" className="hover:text-zinc-100 transition-colors">
-              Network
+            <a href="#what-we-do" className="hover:text-zinc-100 transition-colors">
+              What We Do
             </a>
-            <a href="#initiatives" className="hover:text-zinc-100 transition-colors">
-              Developer Days
+            <a href="#what-we-do" className="hover:text-zinc-100 transition-colors">
+              Activities
             </a>
           </nav>
 
