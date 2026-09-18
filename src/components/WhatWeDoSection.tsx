@@ -63,48 +63,32 @@ const RESTING_CONFIGS = [
 ];
 
 // Tuning parameters for scroll-locking story progression
-const TOTAL_WHEEL_DELTA = 2200; // Total scroll delta across all 4 states
-const COMPLETION_THRESHOLD = 280; // Extra deliberate scroll needed after reaching 100% to unlock to Section 3
-const ENTRY_THRESHOLD = 280; // Extra deliberate scroll needed after reaching 0% to unlock to Hero
-const TOTAL_TOUCH_DELTA = 1100; // Touch drag sensitivity
+// Calibrated so a single moderate scroll gesture advances ~1 activity transition
+const TOTAL_WHEEL_DELTA = 660; // Total scroll delta across all 3 transitions (~220px per transition)
+const COMPLETION_THRESHOLD = 100; // Brief follow-through scroll to release lock to Section 3
+const ENTRY_THRESHOLD = 100; // Brief follow-through scroll to release lock to Hero
+const TOTAL_TOUCH_DELTA = 450; // Touch drag sensitivity (~150px swipe per transition)
 
 /**
  * Continuous mapping from normalized progress p in [0, 1]
- * to continuous state position [0, 3] with resting plateaus
- * where each memory is clearly experienced in focus.
+ * to continuous state position [0, 3].
+ * Each activity spans an equal 1/3 (0.3333) segment of progress.
+ *
+ * Provides immediate visual feedback on ANY scroll movement
+ * with a natural gentle cushion at each resting state (0, 1, 2, 3).
+ * Eliminates dead-scroll zones so the interface feels directly responsive.
  */
 function progressToStatePos(p: number): number {
   const clampP = Math.max(0, Math.min(1, p));
+  const rawPos = clampP * 3; // 0.0 to 3.0
+  const baseIndex = Math.min(2, Math.floor(rawPos));
+  const fraction = rawPos - baseIndex; // 0.0 to 1.0 within this transition
 
-  // State 0 (DEV DAYS): 0% to 8% holding plateau
-  if (clampP <= 0.08) {
-    return 0;
-  }
-  // Transition 0 -> 1: 8% to 32%
-  if (clampP < 0.32) {
-    const t = (clampP - 0.08) / (0.32 - 0.08);
-    return 0 + t * t * (3 - 2 * t) * 1.0;
-  }
-  // State 1 (WORKSHOPS): 32% to 42% holding plateau
-  if (clampP <= 0.42) {
-    return 1.0;
-  }
-  // Transition 1 -> 2: 42% to 66%
-  if (clampP < 0.66) {
-    const t = (clampP - 0.42) / (0.66 - 0.42);
-    return 1.0 + t * t * (3 - 2 * t) * 1.0;
-  }
-  // State 2 (HACKATHONS): 66% to 76% holding plateau
-  if (clampP <= 0.76) {
-    return 2.0;
-  }
-  // Transition 2 -> 3: 76% to 94%
-  if (clampP < 0.94) {
-    const t = (clampP - 0.76) / (0.94 - 0.76);
-    return 2.0 + t * t * (3 - 2 * t) * 1.0;
-  }
-  // State 3 (KNOWLEDGE SHARING): 94% to 100% holding plateau
-  return 3.0;
+  // Smoothstep easing: t * t * (3 - 2 * t)
+  // Provides natural zero-derivative breathing space at exact activity landings,
+  // with smooth immediate visual motion as soon as scrolling begins.
+  const eased = fraction * fraction * (3 - 2 * fraction);
+  return baseIndex + eased;
 }
 
 export const WhatWeDoSection: React.FC = () => {
@@ -137,7 +121,8 @@ export const WhatWeDoSection: React.FC = () => {
     const tick = () => {
       const diff = targetProgressRef.current - currentProgressRef.current;
       if (Math.abs(diff) > 0.0002) {
-        currentProgressRef.current += diff * 0.12;
+        // High responsiveness factor: follows user intent swiftly while maintaining buttery glide
+        currentProgressRef.current += diff * 0.18;
         setProgress(currentProgressRef.current);
       } else if (currentProgressRef.current !== targetProgressRef.current) {
         currentProgressRef.current = targetProgressRef.current;
@@ -343,9 +328,9 @@ export const WhatWeDoSection: React.FC = () => {
       if (['ArrowDown', 'PageDown', 'Space'].includes(e.code)) {
         if (targetProgressRef.current < 1.0) {
           e.preventDefault();
-          targetProgressRef.current = Math.min(1.0, targetProgressRef.current + 0.12);
+          targetProgressRef.current = Math.min(1.0, targetProgressRef.current + 1 / 3);
         } else {
-          completionHoldRef.current += 100;
+          completionHoldRef.current += 50;
           if (completionHoldRef.current >= COMPLETION_THRESHOLD) {
             setIsLocked(false);
           }
@@ -353,9 +338,9 @@ export const WhatWeDoSection: React.FC = () => {
       } else if (['ArrowUp', 'PageUp'].includes(e.code)) {
         if (targetProgressRef.current > 0.0) {
           e.preventDefault();
-          targetProgressRef.current = Math.max(0.0, targetProgressRef.current - 0.12);
+          targetProgressRef.current = Math.max(0.0, targetProgressRef.current - 1 / 3);
         } else {
-          entryHoldRef.current += 100;
+          entryHoldRef.current += 50;
           if (entryHoldRef.current >= ENTRY_THRESHOLD) {
             setIsLocked(false);
           }
@@ -372,7 +357,7 @@ export const WhatWeDoSection: React.FC = () => {
 
   // Clicking an activity step smoothly navigates directly to that memory
   const handleStepClick = (idx: number) => {
-    const stepTargetProgress = [0.04, 0.37, 0.71, 0.98][idx];
+    const stepTargetProgress = [0.0, 1 / 3, 2 / 3, 1.0][idx];
     targetProgressRef.current = stepTargetProgress;
     if (!isLockedRef.current) {
       setIsLocked(true);
