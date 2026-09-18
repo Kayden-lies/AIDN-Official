@@ -11,7 +11,7 @@ const INTRO_LINES = [
 
 export type LoadingPhase =
   | 'loading'     // 0% -> 100% real GLB download and scene parsing
-  | 'hold100'     // Model loaded, brief hold of 100% state (~350ms)
+  | 'hold100'     // Model loaded, extended hold of 100% state (~1000ms)
   | 'fade_ui'     // Loading composition fades out simultaneously (~400ms)
   | 'dark_pause'  // Brief cinematic darkness (~250ms)
   | 'revealing'   // 16s four-light reveal sequence (revealProgress 0 -> 1)
@@ -229,7 +229,7 @@ export const HeroSection: React.FC = () => {
         setDisplayProgress(100);
         setPhase('hold100');
 
-        // 1. Brief 100% hold (~350ms) with quote visible
+        // 1. Extended cinematic 100% hold (~1000ms / 1.0s) with quote, bar at 100%, and percentage visible
         const t1 = setTimeout(() => {
           if (!active) return;
           setPhase('fade_ui');
@@ -247,7 +247,7 @@ export const HeroSection: React.FC = () => {
             timeoutRefs.current.push(t3);
           }, 400);
           timeoutRefs.current.push(t2);
-        }, 350);
+        }, 1000);
         timeoutRefs.current.push(t1);
 
         return; // End progress interpolation loop
@@ -453,10 +453,10 @@ export const HeroSection: React.FC = () => {
       )}
 
       {/* 4. FINAL HERO COMPOSITION (TYPOGRAPHY HIERARCHY) */}
-      {/* Centered structured layout leaving negative space for the 3D 'A' */}
-      <div className="relative z-20 w-full h-full flex flex-col justify-between items-center pt-4 md:pt-6 pb-12 md:pb-16 px-6 max-w-6xl mx-auto pointer-events-none">
-        {/* ABOVE THE A: "Artificial Intelligence Developer Network" (shifted higher) */}
-        <div className="pt-0 text-center">
+      {/* Centered structured layout with calibrated vertical breathing room for the 3D model and typography */}
+      <div className="relative z-20 w-full h-full flex flex-col justify-between items-center pt-10 sm:pt-12 md:pt-16 pb-10 md:pb-12 px-6 max-w-6xl mx-auto pointer-events-none">
+        {/* ABOVE THE A: "Artificial Intelligence Developer Network" with gentle downward breathing room */}
+        <div className="pt-2 sm:pt-3 text-center">
           <div
             id="hero-top-title"
             className={`transition-all duration-1000 ease-out ${
@@ -482,7 +482,7 @@ export const HeroSection: React.FC = () => {
         <div className="flex-1 w-full max-w-lg flex items-center justify-center" />
 
         {/* BELOW THE AIDN MODEL */}
-        <div className="pb-8 md:pb-12 text-center flex flex-col items-center gap-1.5 sm:gap-2">
+        <div className="pb-6 md:pb-8 text-center flex flex-col items-center gap-1.5 sm:gap-2">
           {/* Tagline: "From Code to Cognition" */}
           <div
             id="hero-tagline"
