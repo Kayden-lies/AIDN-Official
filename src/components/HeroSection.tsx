@@ -484,7 +484,7 @@ export const HeroSection: React.FC = () => {
             }`}
           >
             <h2
-              className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-[0.12em] sm:tracking-[0.18em] uppercase text-zinc-200/95 leading-tight"
+              className="text-[1.425rem] sm:text-[1.78125rem] md:text-[2.1375rem] font-semibold tracking-[0.12em] sm:tracking-[0.18em] uppercase text-zinc-200/95 leading-tight"
               style={{
                 fontFamily: 'var(--font-display)',
                 textShadow: '0 2px 25px rgba(0, 0, 0, 0.85)',
