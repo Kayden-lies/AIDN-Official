@@ -59,7 +59,7 @@ export const CustomCursor: React.FC = () => {
   return (
     <div
       ref={cursorRef}
-      className={`fixed top-0 left-0 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none flex items-center justify-center transition-opacity duration-200 ${
+      className={`fixed top-0 left-0 -translate-x-1/2 -translate-y-1/2 z-[9999] pointer-events-none flex items-center justify-center transition-opacity duration-200 ${
         isVisible ? 'opacity-100' : 'opacity-0'
       }`}
       aria-hidden="true"

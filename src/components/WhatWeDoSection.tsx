@@ -290,8 +290,19 @@ export const WhatWeDoSection: React.FC = () => {
     };
 
     window.addEventListener('scroll', handleWindowScroll, { passive: true });
+
+    const handleNavUnlock = () => {
+      setIsLocked(false);
+      isLockedRef.current = false;
+      justUnlockedRef.current = true;
+      if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+      if (settleRafRef.current) cancelAnimationFrame(settleRafRef.current);
+    };
+    window.addEventListener('aidn-nav-unlock', handleNavUnlock);
+
     return () => {
       window.removeEventListener('scroll', handleWindowScroll);
+      window.removeEventListener('aidn-nav-unlock', handleNavUnlock);
       if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
       if (settleRafRef.current) cancelAnimationFrame(settleRafRef.current);
     };

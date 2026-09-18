@@ -33,3 +33,13 @@ html, body {
   background: radial-gradient(circle at 50% 50%, rgba(10, 25, 47, 0.45) 0%, rgba(3, 5, 8, 0.95) 70%, #020407 100%);
 }
 
+/* Hide scrollbars for clean horizontal nav strips */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+

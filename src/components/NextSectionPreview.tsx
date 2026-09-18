@@ -3,7 +3,8 @@ import React from 'react';
 export const NextSectionPreview: React.FC = () => {
   return (
     <section
-      id="about-section"
+      id="the-network"
+      data-section="the-network"
       className="relative z-10 w-full min-h-[60vh] bg-[#020408] border-t border-zinc-900/80 px-6 py-24 md:py-32"
     >
       <div className="max-w-5xl mx-auto">
