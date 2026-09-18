@@ -2,24 +2,28 @@ import React, { useState, useEffect } from 'react';
 
 export const Navigation: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
-  const [isSection2Active, setIsSection2Active] = useState(false);
+  const [activeSection, setActiveSection] = useState<'hero' | 'the-idea' | 'what-we-do' | 'activities'>('the-idea');
 
   useEffect(() => {
     const handleScroll = () => {
-      // Reveal navigation only when scrolled past 60% of the Hero viewport
-      const threshold = window.innerHeight * 0.6;
+      // Reveal navigation when scrolled past 40% of the Hero viewport
+      const threshold = window.innerHeight * 0.4;
       setIsVisible(window.scrollY > threshold);
 
-      // Detect when Section 2 ("What We Do at AIDN") is active in viewport
-      const section2 = document.getElementById('what-we-do');
-      if (section2) {
-        const rect = section2.getBoundingClientRect();
-        // Active when Section 2 is at or near top under navbar, and has not scrolled past
-        const topThreshold = 140;
-        const isActive = rect.top <= topThreshold && rect.bottom > topThreshold;
-        setIsSection2Active(isActive);
+      const theIdea = document.getElementById('the-idea');
+      const whatWeDo = document.getElementById('what-we-do');
+      const nextSection = document.getElementById('next-section');
+
+      // Check section positions relative to viewport
+      const topOffset = 220;
+      if (nextSection && nextSection.getBoundingClientRect().top <= topOffset) {
+        setActiveSection('activities');
+      } else if (whatWeDo && whatWeDo.getBoundingClientRect().top <= topOffset) {
+        setActiveSection('what-we-do');
+      } else if (theIdea && theIdea.getBoundingClientRect().top <= topOffset) {
+        setActiveSection('the-idea');
       } else {
-        setIsSection2Active(false);
+        setActiveSection('hero');
       }
     };
 
@@ -40,6 +44,13 @@ export const Navigation: React.FC = () => {
     }
   };
 
+  const navItems = [
+    { id: 'hero-section', label: 'HERO', key: 'hero' },
+    { id: 'the-idea', label: 'THE IDEA', key: 'the-idea' },
+    { id: 'what-we-do', label: 'WHAT WE DO', key: 'what-we-do' },
+    { id: 'next-section', label: 'ACTIVITIES', key: 'activities' },
+  ];
+
   return (
     <header
       id="main-navigation"
@@ -51,61 +62,61 @@ export const Navigation: React.FC = () => {
     >
       <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between px-6 py-3 rounded-full bg-zinc-950/80 backdrop-blur-md border border-zinc-800/80 shadow-2xl">
-          {/* Brand mark */}
-          <div className="flex items-center space-x-3">
+          {/* Brand mark with reference typography */}
+          <div className="flex items-center space-x-3.5">
             <span
-              className="text-sm font-bold tracking-[0.2em] uppercase text-zinc-100"
+              className="text-sm font-bold tracking-[0.25em] uppercase text-zinc-100"
               style={{ fontFamily: 'var(--font-display)' }}
             >
               AIDN
             </span>
-            <span className="text-zinc-600">/</span>
-            <span className="text-xs tracking-wider text-zinc-400 font-medium">
-              Pune Chapter
-            </span>
+            <span className="h-4 w-[1px] bg-zinc-800" />
+            <div className="hidden sm:flex flex-col text-[8.5px] font-sans tracking-[0.16em] uppercase text-zinc-400 leading-tight">
+              <span>Artificial Intelligence</span>
+              <span>Developer Network</span>
+              <span className="text-zinc-500">Pune</span>
+            </div>
           </div>
 
-          {/* Minimal Links */}
-          <nav className="hidden md:flex items-center space-x-8 text-xs tracking-wider uppercase text-zinc-400 font-medium">
-            <a
-              href="#hero-section"
-              onClick={handleScrollTo('hero-section')}
-              className="text-zinc-400 hover:text-zinc-100 transition-colors"
-            >
-              Hero
-            </a>
-
-            {/* WHAT WE DO: Active navigation state with matching sky-400 accent & smooth underline */}
-            <a
-              href="#what-we-do"
-              onClick={handleScrollTo('what-we-do')}
-              className={`relative py-1 transition-colors duration-300 font-medium ${
-                isSection2Active ? 'text-sky-400' : 'text-zinc-400 hover:text-zinc-100'
-              }`}
-            >
-              What We Do
-              <span
-                aria-hidden="true"
-                className={`absolute bottom-0 left-0 w-full h-[1.5px] bg-sky-400 rounded-full transition-all duration-300 ease-out origin-center ${
-                  isSection2Active ? 'opacity-100 scale-x-100' : 'opacity-0 scale-x-0'
-                }`}
-              />
-            </a>
-
-            <a
-              href="#what-we-do"
-              onClick={handleScrollTo('what-we-do')}
-              className="text-zinc-400 hover:text-zinc-100 transition-colors"
-            >
-              Activities
-            </a>
+          {/* Nav Links */}
+          <nav className="hidden md:flex items-center space-x-8 text-xs tracking-wider uppercase font-medium">
+            {navItems.map((item) => {
+              const isActive = activeSection === item.key;
+              return (
+                <a
+                  key={item.key}
+                  href={`#${item.id}`}
+                  onClick={handleScrollTo(item.id)}
+                  className={`relative py-1 transition-colors duration-300 ${
+                    isActive ? 'text-sky-400' : 'text-zinc-400 hover:text-zinc-100'
+                  }`}
+                >
+                  {item.label}
+                  <span
+                    aria-hidden="true"
+                    className={`absolute -bottom-1 left-0 w-full h-[1.5px] bg-sky-400 rounded-full transition-all duration-300 ease-out origin-center ${
+                      isActive ? 'opacity-100 scale-x-100' : 'opacity-0 scale-x-0'
+                    }`}
+                  />
+                </a>
+              );
+            })}
           </nav>
 
-          {/* Action indicator */}
-          <div className="flex items-center space-x-4">
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium tracking-wider uppercase bg-sky-500/10 text-sky-400 border border-sky-500/20">
-              Active Network
-            </span>
+          {/* Join Us action button matching visual reference */}
+          <div className="flex items-center space-x-3">
+            <a
+              href="#join-us"
+              onClick={(e) => {
+                e.preventDefault();
+                const target = document.getElementById('next-section') || document.getElementById('what-we-do');
+                if (target) target.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full text-xs font-medium tracking-wider uppercase bg-transparent text-zinc-200 border border-zinc-700/80 hover:border-zinc-500 hover:text-white transition-all duration-300 cursor-pointer"
+            >
+              <span>Join Us</span>
+              <span className="text-zinc-400 group-hover:text-white text-xs">→</span>
+            </a>
           </div>
         </div>
       </div>

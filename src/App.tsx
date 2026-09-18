@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { HeroSection } from './components/HeroSection';
+import { TheIdeaSection } from './components/TheIdeaSection';
 import { Navigation } from './components/Navigation';
 import { WhatWeDoSection } from './components/WhatWeDoSection';
 import { NextSectionPreview } from './components/NextSectionPreview';
@@ -23,10 +24,13 @@ export default function App() {
         {/* SECTION 1: CINEMATIC HERO */}
         <HeroSection />
 
-        {/* SECTION 2: WHAT WE DO AT AIDN (SCROLL-LOCKED STORYTELLING CHAPTER) */}
+        {/* SECTION 2: THE IDEA BEHIND AIDN (MINIMAL EDITORIAL CHAPTER) */}
+        <TheIdeaSection />
+
+        {/* SECTION 3: WHAT WE DO AT AIDN (SCROLL-LOCKED STORYTELLING CHAPTER) */}
         <WhatWeDoSection />
 
-        {/* SECTION 3: NETWORK ARCHITECTURE (UNLOCKED DESTINATION) */}
+        {/* SECTION 4: NETWORK ARCHITECTURE (UNLOCKED DESTINATION) */}
         <NextSectionPreview />
       </main>
     </div>

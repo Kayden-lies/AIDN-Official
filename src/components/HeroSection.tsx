@@ -562,7 +562,7 @@ export const HeroSection: React.FC = () => {
       <div
         id="scroll-indicator"
         onClick={() => {
-          const target = document.getElementById('what-we-do');
+          const target = document.getElementById('the-idea') || document.getElementById('what-we-do');
           if (target) {
             target.scrollIntoView({ behavior: 'smooth' });
           } else {
